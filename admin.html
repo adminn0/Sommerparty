@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Login Maske -->
+    <div id="loginArea" class="container">
+        <h1>🔐 Admin Login</h1>
+        <div class="form-group">
+            <input type="password" id="passwordField" placeholder="Passwort eingeben">
+        </div>
+        <button onclick="checkPassword()">Einloggen</button>
+        <div style="text-align: center; margin-top: 15px;">
+            <a href="index.html" style="color: #aaa; text-decoration: none; font-size: 14px;">Zurück zur Anmeldung</a>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboardArea" class="container hidden" style="max-width: 800px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 style="margin: 0; text-align: left;">📊 Party-Auswertung</h1>
+            <button onclick="logout()" style="width: auto; padding: 8px 15px; background-color: #444; font-size: 14px;">Abmelden</button>
+        </div>
+        
+        <div class="filter-buttons">
+            <button class="filter-btn active" onclick="setFilter('alle', this)">Alle Infos</button>
+            <button class="filter-btn" onclick="setFilter('allergien', this)">⚠️ Allergien</button>
+            <button class="filter-btn" onclick="setFilter('getraenke', this)">🍹 Getränke</button>
+            <button class="filter-btn" onclick="setFilter('songs', this)">🎵 Songs</button>
+            <button class="filter-btn" onclick="setFilter('wuensche', this)">✨ Wünsche</button>
+        </div>
+
+        <div id="loading" style="text-align:center;">Lade Daten aus Google Sheets...</div>
+        <div id="dataList" class="data-list"></div>
+    </div>
+
+    <script>
+        const ADMIN_PASSWORD = "grillmeister2026"; 
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwtLsq0eaj2aFetdlM2VhQHF2FbEiVxxkHOaLttshtHp6y4UzIpUH6VewWVAs3leJIm/exec"; 
+        let allData = [];
+        let currentFilter = 'alle';
+
+        // Session-Check beim Laden der Seite
+        window.onload = function() {
+            if (sessionStorage.getItem('isAdminLoggedIn') === 'true') {
+                document.getElementById('loginArea').classList.add('hidden');
+                document.getElementById('dashboardArea').classList.remove('hidden');
+                loadData();
+            }
+        }
+
+        function checkPassword() {
+            const input = document.getElementById('passwordField').value;
+            if(input === ADMIN_PASSWORD) {
+                sessionStorage.setItem('isAdminLoggedIn', 'true');
+                document.getElementById('loginArea').classList.add('hidden');
+                document.getElementById('dashboardArea').classList.remove('hidden');
+                loadData();
+            } else {
+                alert('Falsches Passwort!');
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('isAdminLoggedIn');
+            document.getElementById('dashboardArea').classList.add('hidden');
+            document.getElementById('loginArea').classList.remove('hidden');
+            document.getElementById('passwordField').value = "";
+        }
+
+        function loadData() {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('loading').innerText = "Lade Daten aus Google Sheets...";
+            fetch(SCRIPT_URL)
+            .then(res => res.json())
+            .then(data => {
+                allData = data;
+                document.getElementById('loading').classList.add('hidden');
+                renderData(currentFilter);
+            })
+            .catch(err => {
+                document.getElementById('loading').innerText = "Fehler beim Laden der Daten.";
+                console.error(err);
+            });
+        }
+
+        function renderData(filter) {
+            const list = document.getElementById('dataList');
+            list.innerHTML = "";
+
+            // LocalStorage Keys für Abgehakt und Gelöscht abrufen
+            const checkedItems = JSON.parse(localStorage.getItem('checkedGuests') || "[]");
+            const deletedItems = JSON.parse(localStorage.getItem('deletedGuests') || "[]");
+
+            // Filtere Einträge heraus, die auf der clientseitigen Blacklist stehen
+            const visibleData = allData.filter(gast => !deletedItems.includes(gast.zeitstempel));
+
+            if(visibleData.length === 0) {
+                list.innerHTML = "<p style='text-align:center; color:#aaa;'>Noch keine Anmeldungen vorhanden.</p>";
+                return;
+            }
+
+            visibleData.forEach(gast => {
+                const isChecked = checkedItems.includes(gast.zeitstempel);
+                
+                const item = document.createElement('div');
+                item.className = "data-item";
+                if (isChecked) {
+                    item.style.opacity = "0.4";
+                    item.style.borderLeftColor = "#555";
+                }
+                
+                let content = `
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <h3 style="${isChecked ? 'text-decoration: line-through; color: #888;' : ''}">${gast.name} (${gast.typ})</h3>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="toggleCheck('${gast.zeitstempel}')" style="width:auto; padding: 4px 8px; font-size: 12px; background-color: ${isChecked ? '#555' : '#28a745'}">
+                                ${isChecked ? '↩️' : '✅'}
+                            </button>
+                            <button onclick="deleteItem('${gast.zeitstempel}')" style="width:auto; padding: 4px 8px; font-size: 12px; background-color: #dc3545">❌</button>
+                        </div>
+                    </div>
+                `;
+                
+                if (filter === 'alle') {
+                    content += `<p><strong>Allergien:</strong> ${gast.allergien}</p>`;
+                    content += `<p><strong>Getränke:</strong> ${gast.getraenke}</p>`;
+                    content += `<p><strong>Songs:</strong> ${gast.songs}</p>`;
+                    content += `<p><strong>Wünsche:</strong> ${gast.wuensche}</p>`;
+                } else if (filter === 'allergien') {
+                    content += `<p>⚠️ <strong>Allergien:</strong> ${gast.allergien}</p>`;
+                } else if (filter === 'getraenke') {
+                    content += `<p>🍹 <strong>Getränke:</strong> ${gast.getraenke}</p>`;
+                } else if (filter === 'songs') {
+                    content += `<p>🎵 <strong>Songs:</strong> ${gast.songs}</p>`;
+                } else if (filter === 'wuensche') {
+                    content += `<p>✨ <strong>Sonstige Wünsche:</strong> ${gast.wuensche}</p>`;
+                }
+
+                item.innerHTML = content;
+                list.appendChild(item);
+            });
+        }
+
+        function toggleCheck(id) {
+            let checkedItems = JSON.parse(localStorage.getItem('checkedGuests') || "[]");
+            if (checkedItems.includes(id)) {
+                checkedItems = checkedItems.filter(item => item !== id);
+            } else {
+                checkedItems.push(id);
+            }
+            localStorage.setItem('checkedGuests', JSON.stringify(checkedItems));
+            renderData(currentFilter);
+        }
+
+        function deleteItem(id) {
+            if(confirm("Möchtest du diesen Eintrag wirklich aus der Ansicht löschen?")) {
+                let deletedItems = JSON.parse(localStorage.getItem('deletedGuests') || "[]");
+                deletedItems.push(id);
+                localStorage.setItem('deletedGuests', JSON.stringify(deletedItems));
+                renderData(currentFilter);
+            }
+        }
+
+        function setFilter(filter, btn) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderData(filter);
+        }
+    </script>
+</body>
+</html>
