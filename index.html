@@ -87,14 +87,7 @@
 
             // Text in die Box schreiben
             document.getElementById("countdown").innerHTML = dDisplay + "d " + hDisplay + "h " + mDisplay + "m " + sDisplay + "s";
-
-            // Wenn der Countdown abgelaufen ist
-            if (difference < 0) {
-                clearInterval(countdownInterval);
-                document.getElementById("countdownBox").innerHTML = "<p style='font-size: 18px; color: #28a745; font-weight: bold; margin: 0;'>🔥 DIE PARTY LÄUFT! 🔥</p>";
-            }
-        }, 1000);
-
+            
         // FORMULAR-SENDESCRIPT
         document.getElementById('partyForm').addEventListener('submit', function(e) {
             e.preventDefault();
